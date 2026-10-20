@@ -6,7 +6,7 @@ from django.http import HttpRequest, JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
-from .services import realizar_transferencia
+from .services import obter_registro_idempotencia, realizar_transferencia
 
 
 def home_view(request: HttpRequest) -> JsonResponse:
@@ -35,28 +35,21 @@ def transferir_view(request: HttpRequest) -> JsonResponse:
 
     idempotency_key = request.headers.get("Idempotency-Key")
     if idempotency_key:
-        from .models import RegistroIdempotencia
-
-        registro = RegistroIdempotencia.objects.filter(chave=idempotency_key).first()
-        if registro:
-            return JsonResponse(registro.resultado, status=registro.status_code)
+        registro_previo = obter_registro_idempotencia(idempotency_key)
+        if registro_previo:
+            return JsonResponse(registro_previo.resultado, status=registro_previo.status_code)
 
     try:
         conta_atualizada = realizar_transferencia(
             conta_origem_id=origem_id,
             conta_destino_id=destino_id,
             valor=valor,
+            chave_idempotencia=idempotency_key,
         )
-        resposta_dados = {"status": "sucesso", "novo_saldo": str(conta_atualizada.saldo)}
-        if idempotency_key:
-            from .models import RegistroIdempotencia
-
-            RegistroIdempotencia.objects.create(
-                chave=idempotency_key,
-                resultado=resposta_dados,
-                status_code=200,
-            )
-        return JsonResponse(resposta_dados, status=200)
+        return JsonResponse(
+            {"status": "sucesso", "novo_saldo": str(conta_atualizada.saldo)},
+            status=200,
+        )
     except ValidationError as erro:
         mensagem = erro.message if hasattr(erro, "message") else str(erro.messages[0])
         return JsonResponse({"erro": mensagem}, status=400)

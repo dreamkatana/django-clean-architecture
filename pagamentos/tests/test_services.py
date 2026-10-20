@@ -72,3 +72,28 @@ def test_deve_bloquear_transferencia_para_mesma_conta():
             conta_destino_id=origem.id,
             valor=Decimal("20.00"),
         )
+
+
+@pytest.mark.django_db
+def test_deve_respeitar_idempotencia_ao_chamar_servico_diretamente():
+    origem = Conta.objects.create(titular="João", saldo=Decimal("100.00"))
+    destino = Conta.objects.create(titular="Maria", saldo=Decimal("50.00"))
+
+    realizar_transferencia(
+        conta_origem_id=origem.id,
+        conta_destino_id=destino.id,
+        valor=Decimal("30.00"),
+        chave_idempotencia="service-key-123",
+    )
+    # Chamada repetida com a mesma chave não debita novamente
+    realizar_transferencia(
+        conta_origem_id=origem.id,
+        conta_destino_id=destino.id,
+        valor=Decimal("30.00"),
+        chave_idempotencia="service-key-123",
+    )
+
+    origem.refresh_from_db()
+    destino.refresh_from_db()
+    assert origem.saldo == Decimal("70.00")
+    assert destino.saldo == Decimal("80.00")
