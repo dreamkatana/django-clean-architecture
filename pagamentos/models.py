@@ -8,3 +8,13 @@ class Conta(models.Model):
 
     def __str__(self) -> str:
         return f"{self.titular} (€ {self.saldo})"
+
+
+class RegistroIdempotencia(models.Model):
+    chave = models.CharField(max_length=255, unique=True, db_index=True)
+    resultado = models.JSONField()
+    status_code = models.PositiveSmallIntegerField(default=200)
+    criado_em = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self) -> str:
+        return f"Idempotencia {self.chave} ({self.status_code})"

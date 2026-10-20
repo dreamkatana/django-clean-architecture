@@ -33,16 +33,30 @@ def transferir_view(request: HttpRequest) -> JsonResponse:
     except (KeyError, json.JSONDecodeError, InvalidOperation, ValueError, TypeError):
         return JsonResponse({"erro": "Dados inválidos na requisição."}, status=400)
 
+    idempotency_key = request.headers.get("Idempotency-Key")
+    if idempotency_key:
+        from .models import RegistroIdempotencia
+
+        registro = RegistroIdempotencia.objects.filter(chave=idempotency_key).first()
+        if registro:
+            return JsonResponse(registro.resultado, status=registro.status_code)
+
     try:
         conta_atualizada = realizar_transferencia(
             conta_origem_id=origem_id,
             conta_destino_id=destino_id,
             valor=valor,
         )
-        return JsonResponse(
-            {"status": "sucesso", "novo_saldo": str(conta_atualizada.saldo)},
-            status=200,
-        )
+        resposta_dados = {"status": "sucesso", "novo_saldo": str(conta_atualizada.saldo)}
+        if idempotency_key:
+            from .models import RegistroIdempotencia
+
+            RegistroIdempotencia.objects.create(
+                chave=idempotency_key,
+                resultado=resposta_dados,
+                status_code=200,
+            )
+        return JsonResponse(resposta_dados, status=200)
     except ValidationError as erro:
         mensagem = erro.message if hasattr(erro, "message") else str(erro.messages[0])
         return JsonResponse({"erro": mensagem}, status=400)
