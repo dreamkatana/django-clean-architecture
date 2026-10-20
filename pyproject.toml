@@ -1,36 +1,128 @@
-[tool.ruff]
-line-length = 100
-target-version = "py312"
-exclude = [
-    ".venv",
-    "venv",
-    "migrations",
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "core-api"
+version = "0.1.0"
+description = "Backend em Django com TDD e Clean Architecture"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "django>=5.0,<6.2",
+    "psycopg[binary]>=3.1.18",
+    "dj-database-url>=3.0.0",
 ]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-django>=4.8.0",
+    "pytest-cov>=5.0.0",
+    "pytest-xdist>=3.5.0",
+    "ruff>=0.6.0",
+    "mypy>=1.11.0",
+    "django-stubs[compatible-mypy]>=5.0.0",
+    "bandit[toml]>=1.7.9",
+]
+
+# =====================================================================
+# 1. PYTEST & PYTEST-DJANGO
+# =====================================================================
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "config.settings"
+python_files = ["test_*.py", "*_test.py", "tests.py"]
+addopts = "-ra -q --strict-markers --reuse-db --tb=short"
+markers = [
+    "unit: testes unitarios rapidos que nao dependem de I/O externo",
+    "integration: testes que integram banco de dados ou servicos",
+]
+
+# =====================================================================
+# 2. COVERAGE (Cobertura de Testes)
+# =====================================================================
+[tool.coverage.run]
+source = ["."]
+branch = true
+omit = [
+    "*/migrations/*",
+    "*/tests/*",
+    "manage.py",
+    "config/wsgi.py",
+    "config/asgi.py",
+    "config/settings*.py",
+]
+
+[tool.coverage.report]
+fail_under = 85
+show_missing = true
+skip_covered = true
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+]
+
+# =====================================================================
+# 3. RUFF (Linter + Formatter)
+# =====================================================================
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+extend-exclude = ["*/migrations/*"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "B"]
-ignore = ["E501"]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+    "DJ",  # flake8-django (Regras de boas praticas do Django)
+    "SIM", # flake8-simplify
+]
+ignore = [
+    "E501", # Linha longa
+]
 
+[tool.ruff.lint.per-file-ignores]
+"**/tests/**" = ["S101", "S105", "S106"]
+"**/test_*.py" = ["S101", "S105", "S106"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["config", "pagamentos"]
+section-order = ["future", "standard-library", "third-party", "first-party", "local-folder"]
+
+# =====================================================================
+# 4. MYPY + DJANGO-STUBS
+# =====================================================================
 [tool.mypy]
 python_version = "3.12"
-plugins = ["mypy_django_plugin.main"]
-ignore_missing_imports = true
-exclude = [
-    "venv",
-    ".venv",
-    "migrations",
+plugins = [
+    "mypy_django_plugin.main",
 ]
+check_untyped_defs = true
+disallow_any_generics = true
+ignore_missing_imports = true
+warn_redundant_casts = true
+warn_unused_configs = true
+
+[[tool.mypy.overrides]]
+module = [
+    "*.admin",
+    "*.migrations.*",
+    "*.tests.*",
+]
+ignore_errors = true
 
 [tool.django-stubs]
 django_settings_module = "config.settings"
 
-[tool.coverage.run]
-omit = [
-    "manage.py",
-    "config/asgi.py",
-    "config/wsgi.py",
-]
-
+# =====================================================================
+# 5. BANDIT (Seguranca / SAST)
+# =====================================================================
 [tool.bandit]
-exclude_dirs = ["tests", "pagamentos/tests", ".venv", "venv"]
+exclude_dirs = ["tests", "pagamentos/tests", "venv", ".venv"]
 skips = ["B101"]
