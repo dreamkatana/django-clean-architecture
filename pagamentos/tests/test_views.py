@@ -101,3 +101,42 @@ def test_home_view_sucesso(client: Client):
     dados = response.json()
     assert dados["status"] == "ok"
     assert "transferir" in dados["endpoints"]
+
+
+@pytest.mark.django_db
+def test_transferir_view_com_chave_idempotencia_nao_duplica_debito(client: Client):
+    origem = Conta.objects.create(titular="Carlos", saldo=Decimal("100.00"))
+    destino = Conta.objects.create(titular="Ana", saldo=Decimal("50.00"))
+
+    payload = {
+        "origem_id": origem.id,
+        "destino_id": destino.id,
+        "valor": "30.00",
+    }
+    idempotency_headers = {"HTTP_IDEMPOTENCY_KEY": "tx-key-abc-123"}
+
+    # 1ª tentativa
+    resp1 = client.post(
+        reverse("pagamentos:transferir"),
+        data=json.dumps(payload),
+        content_type="application/json",
+        **idempotency_headers,
+    )
+    assert resp1.status_code == 200
+    assert resp1.json()["novo_saldo"] == "70.00"
+
+    # 2ª tentativa com a mesma chave (ex: retry de rede)
+    resp2 = client.post(
+        reverse("pagamentos:transferir"),
+        data=json.dumps(payload),
+        content_type="application/json",
+        **idempotency_headers,
+    )
+    assert resp2.status_code == 200
+    assert resp2.json()["novo_saldo"] == "70.00"
+
+    # Asserção crítica: o saldo no banco só foi debitado UMA vez!
+    origem.refresh_from_db()
+    destino.refresh_from_db()
+    assert origem.saldo == Decimal("70.00")
+    assert destino.saldo == Decimal("80.00")
