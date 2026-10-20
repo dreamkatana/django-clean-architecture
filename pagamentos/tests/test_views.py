@@ -92,3 +92,12 @@ def test_transferir_view_payload_invalido(client: Client):
 def test_transferir_view_metodo_get_nao_permitido(client: Client):
     response = client.get(reverse("pagamentos:transferir"))
     assert response.status_code == 405
+
+
+@pytest.mark.django_db
+def test_home_view_sucesso(client: Client):
+    response = client.get(reverse("pagamentos:home"))
+    assert response.status_code == 200
+    dados = response.json()
+    assert dados["status"] == "ok"
+    assert "transferir" in dados["endpoints"]
