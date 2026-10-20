@@ -90,6 +90,13 @@ Na função `realizar_transferencia` ([pagamentos/services.py](file:///Users/joa
 1. **`@transaction.atomic`**: Toda a operação é executada dentro de uma transação de banco de dados (`BEGIN ... COMMIT`). Caso ocorra qualquer exceção (como saldo insuficiente ou falha de rede), o Django executa automaticamente um `ROLLBACK`, impedindo inconsistências (por exemplo, dinheiro debitado da conta de origem sem creditar no destino).
 2. **`select_for_update()`**: Executa a query com `SELECT ... FOR UPDATE` no banco relacional (ex.: PostgreSQL). Isso adquire um lock pessimista a nível de linha nas duas contas envolvidas, garantindo que duas requisições simultâneas não debitem o mesmo saldo ao mesmo tempo (proteção contra *Race Conditions* e *Double Spending*).
 3. **`save(update_fields=["saldo"])`**: Prática recomendada em produção. Em vez de enviar todos os campos da tabela no comando SQL `UPDATE`, envia apenas a coluna modificada, reduzindo tráfego e prevenindo sobrescrita acidental de outros campos concorrentes.
+4. **Chave de Idempotência (`Idempotency-Key`)**: Se a conexão falhar ou o cliente reenviar o mesmo POST, o servidor reconhece a chave no header `Idempotency-Key`, retorna a resposta original gravada e **não debita o saldo duas vezes**.
+
+### 4.1. O Ciclo TDD Puro (Commits no Histórico)
+O motor de idempotência foi desenvolvido seguindo estritamente o ciclo de Kent Beck / Extreme Programming (XP):
+- 🔴 **RED (`6585502`)**: Teste escrito antes da implementação falhando com `AssertionError: assert '40.00' == '70.00'`.
+- 🟢 **GREEN (`3d61639`)**: Implementação mínima do model `RegistroIdempotencia` e verificação para fazer o teste passar.
+- 🔵 **REFACTOR (`bf3221c`)**: Encapsulamento da lógica no Service Layer sob transação atômica e 100% de cobertura.
 
 ---
 
